@@ -198,6 +198,9 @@ create_file "app/models/ohlcv_model.py" 'import os
 from sqlalchemy import Column, Integer, String, Float, Date, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from dotenv import load_dotenv
+
+load_dotenv()
 
 Base = declarative_base()
 
@@ -224,6 +227,9 @@ create_file "app/models/news_model.py" 'import os
 from sqlalchemy import Column, Integer, String, Text, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from dotenv import load_dotenv
+
+load_dotenv()
 
 Base = declarative_base()
 
@@ -444,19 +450,35 @@ Este projeto é um relatório automatizado de empresas baseado no ticker enviado
 '
 
 # Criação do Dockerfile
-create_file "Dockerfile" 'FROM python:3.9-slim
+create_file "Dockerfile" 'FROM python:3.11-slim
 
+# Definir diretório de trabalho
 WORKDIR /app
 
+# Instalar dependências do sistema
+RUN apt-get update && apt-get install -y \
+    gcc \
+    curl
+
+# Instalar Poetry
+RUN curl -sSL https://install.python-poetry.org | python3 -
+
+# Adicionar Poetry ao PATH
+ENV PATH="/root/.local/bin:$PATH"
+
+# Copiar arquivos do Poetry
 COPY pyproject.toml poetry.lock ./
 
-RUN pip install --no-cache-dir poetry \\
-    && poetry config virtualenvs.create false \\
+# Instalar dependências do Poetry
+RUN poetry config virtualenvs.create false \
     && poetry install --no-interaction --no-ansi
 
+# Copiar todo o conteúdo do projeto
 COPY . .
 
+# Comando padrão
 CMD ["python", "main.py"]
+
 '
 
 # Criação do Docker Compose
@@ -670,7 +692,7 @@ DATABASE_URL=postgresql://user:password@db:5432/mydatabase
 '
 # Inicialização do Poetry e instalação das dependências
 poetry init -n
-poetry add pandas yfinance requests openai loguru pytest duckdb fastparquet python-dotenv sqlalchemy psycopg2
+poetry add pandas yfinance requests openai loguru pytest duckdb fastparquet python-dotenv sqlalchemy psycopg2-binary
 
 # Inicialização do repositório Git
 git init
