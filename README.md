@@ -3,6 +3,7 @@
 Este projeto gera relatórios automatizados de empresas com base no ticker enviado pelo usuário. Inclui dados OHLCV (Open, High, Low, Close, Volume) e análise de sentimento de notícias utilizando a API da OpenAI.
 
 ## Estrutura do Projeto
+```
 project_root/
 │
 ├── main.py
@@ -37,7 +38,7 @@ project_root/
 │ └── test_utils.py
 └── docs/
 └── index.md
-
+```
 
 ## Pré-requisitos
 
