@@ -1,5 +1,7 @@
 import yfinance as yf
 import requests
+from app.models.ohlcv_model import OHLCV, SessionLocal
+from app.models.news_model import NewsArticle
 
 class DataFetcher:
     def __init__(self, news_api_key):
@@ -18,7 +20,24 @@ class DataFetcher:
                 "Close": row["Close"],
                 "Volume": row["Volume"]
             })
+        self.save_ohlcv(ticker, ohlcv_data)
         return ohlcv_data
+
+    def save_ohlcv(self, ticker, data):
+        session = SessionLocal()
+        for entry in data:
+            ohlcv = OHLCV(
+                ticker=ticker,
+                date=entry["Date"],
+                open=entry["Open"],
+                high=entry["High"],
+                low=entry["Low"],
+                close=entry["Close"],
+                volume=entry["Volume"]
+            )
+            session.add(ohlcv)
+        session.commit()
+        session.close()
 
     def fetch_news(self, ticker):
         url = f"https://newsapi.org/v2/everything?q={ticker}&apiKey={self.news_api_key}"
@@ -31,4 +50,19 @@ class DataFetcher:
                 "description": article["description"],
                 "url": article["url"]
             })
+        self.save_news(ticker, news_data)
         return news_data
+
+    def save_news(self, ticker, data):
+        session = SessionLocal()
+        for entry in data:
+            news_article = NewsArticle(
+                ticker=ticker,
+                title=entry["title"],
+                description=entry["description"],
+                url=entry["url"],
+                sentiment=""  # Sentiment will be updated later
+            )
+            session.add(news_article)
+        session.commit()
+        session.close()

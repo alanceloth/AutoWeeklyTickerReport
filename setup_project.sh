@@ -147,16 +147,32 @@ from app.controllers.data_controller import DataController
 from app.controllers.sentiment_controller import SentimentController
 from app.views.report_view import ReportView
 from loguru import logger
+from app.utils.create_tables import create_tables
+from sqlalchemy import inspect
+from app.models.ohlcv_model import engine as OHLCVEngine
+from app.models.news_model import engine as NewsEngine
 
 # Carregar variáveis de ambiente do arquivo .env
 load_dotenv()
 
-# Configurar a chave da API do OpenAI
+# Configurar as chaves de API
 openai_api_key = os.getenv("OPENAI_API_KEY")
 news_api_key = os.getenv("NEWS_API_KEY")
 
+# Verificar e criar tabelas se necessário
+def check_and_create_tables():
+    inspector = inspect(OHLCVEngine)
+    if not inspector.has_table('ohlcv'):
+        create_tables()
+
+    inspector = inspect(NewsEngine)
+    if not inspector.has_table('news'):
+        create_tables()
+
 def main(ticker):
     try:
+        check_and_create_tables()
+        
         data_controller = DataController(news_api_key)
         sentiment_controller = SentimentController(openai_api_key)
         report_view = ReportView()
@@ -169,29 +185,63 @@ def main(ticker):
         print(report)
     except Exception as e:
         logger.error(f"An error occurred: {e}")
-        # Add your notification logic here (e.g., email, Telegram, Slack)
+        # Adicionar a lógica de notificação aqui (por exemplo, email, Telegram, Slack)
 
 if __name__ == "__main__":
-    ticker = "AAPL"  # Example ticker
+    ticker = "AAPL"  # Ticker de exemplo
     main(ticker)
 
+
 '
 
-create_file "app/models/ohlcv_model.py" 'class OHLCV:
-    def __init__(self, open, high, low, close, volume):
-        self.open = open
-        self.high = high
-        self.low = low
-        self.close = close
-        self.volume = volume
+create_file "app/models/ohlcv_model.py" 'import os
+from sqlalchemy import Column, Integer, String, Float, Date, create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+
+Base = declarative_base()
+
+class OHLCV(Base):
+    __tablename__ = 'ohlcv'
+
+    id = Column(Integer, primary_key=True)
+    ticker = Column(String, nullable=False)
+    date = Column(Date, nullable=False)
+    open = Column(Float, nullable=False)
+    high = Column(Float, nullable=False)
+    low = Column(Float, nullable=False)
+    close = Column(Float, nullable=False)
+    volume = Column(Integer, nullable=False)
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
 '
 
-create_file "app/models/news_model.py" 'class NewsArticle:
-    def __init__(self, title, description, url, sentiment):
-        self.title = title
-        self.description = description
-        self.url = url
-        self.sentiment = sentiment
+create_file "app/models/news_model.py" 'import os
+from sqlalchemy import Column, Integer, String, Text, create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+
+Base = declarative_base()
+
+class NewsArticle(Base):
+    __tablename__ = 'news'
+
+    id = Column(Integer, primary_key=True)
+    ticker = Column(String, nullable=False)
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=False)
+    url = Column(String, nullable=False)
+    sentiment = Column(String, nullable=False)
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
 '
 
 create_file "app/views/report_view.py" 'class ReportView:
@@ -233,6 +283,8 @@ class SentimentController:
 
 create_file "app/utils/data_fetcher.py" 'import yfinance as yf
 import requests
+from app.models.ohlcv_model import OHLCV, SessionLocal
+from app.models.news_model import NewsArticle
 
 class DataFetcher:
     def __init__(self, news_api_key):
@@ -251,7 +303,24 @@ class DataFetcher:
                 "Close": row["Close"],
                 "Volume": row["Volume"]
             })
+        self.save_ohlcv(ticker, ohlcv_data)
         return ohlcv_data
+
+    def save_ohlcv(self, ticker, data):
+        session = SessionLocal()
+        for entry in data:
+            ohlcv = OHLCV(
+                ticker=ticker,
+                date=entry["Date"],
+                open=entry["Open"],
+                high=entry["High"],
+                low=entry["Low"],
+                close=entry["Close"],
+                volume=entry["Volume"]
+            )
+            session.add(ohlcv)
+        session.commit()
+        session.close()
 
     def fetch_news(self, ticker):
         url = f"https://newsapi.org/v2/everything?q={ticker}&apiKey={self.news_api_key}"
@@ -264,7 +333,23 @@ class DataFetcher:
                 "description": article["description"],
                 "url": article["url"]
             })
+        self.save_news(ticker, news_data)
         return news_data
+
+    def save_news(self, ticker, data):
+        session = SessionLocal()
+        for entry in data:
+            news_article = NewsArticle(
+                ticker=ticker,
+                title=entry["title"],
+                description=entry["description"],
+                url=entry["url"],
+                sentiment=""  # Sentiment will be updated later
+            )
+            session.add(news_article)
+        session.commit()
+        session.close()
+
 
 '
 
@@ -288,6 +373,20 @@ class ReportGenerator:
                 "sentiment": sentiment
             })
         return sentiments
+
+'
+create_file "app/utils/create_tables.py" 'from sqlalchemy import inspect
+from app.models.ohlcv_model import Base as OHLCVBase, engine as OHLCVEngine
+from app.models.news_model import Base as NewsBase, engine as NewsEngine
+
+def create_tables():
+    inspector = inspect(OHLCVEngine)
+    if not inspector.has_table('ohlcv'):
+        OHLCVBase.metadata.create_all(bind=OHLCVEngine)
+    
+    inspector = inspect(NewsEngine)
+    if not inspector.has_table('news'):
+        NewsBase.metadata.create_all(bind=NewsEngine)
 
 '
 
@@ -337,6 +436,7 @@ def test_report_generator():
     assert len(sentiments) > 0
 '
 
+
 # Criação da documentação inicial
 create_file "docs/index.md" '# Documentação do Projeto
 
@@ -374,13 +474,14 @@ services:
     env_file:
       - .env
   db:
-    image: postgres:13
+    image: postgres
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
       POSTGRES_DB: mydatabase
     ports:
       - "5432:5432"
+
 '
 
 # Criação do .gitignore
@@ -569,7 +670,7 @@ DATABASE_URL=postgresql://user:password@db:5432/mydatabase
 '
 # Inicialização do Poetry e instalação das dependências
 poetry init -n
-poetry add pandas yfinance requests openai loguru pytest SQLAlchemy duckdb fastparquet python-dotenv
+poetry add pandas yfinance requests openai loguru pytest duckdb fastparquet python-dotenv sqlalchemy psycopg2
 
 # Inicialização do repositório Git
 git init
