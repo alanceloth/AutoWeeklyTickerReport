@@ -154,7 +154,6 @@ from app.models.news_model import engine as NewsEngine
 
 os.makedirs("logs", exist_ok=True)
 
-
 # Carregar variáveis de ambiente do arquivo .env
 load_dotenv()
 
@@ -179,15 +178,62 @@ def main(ticker):
     try:
         check_and_create_tables()
         
-        data_controller = DataController(news_api_key)
-        sentiment_controller = SentimentController(openai_api_key)
-        report_view = ReportView()
+        #Data Controller
+        logger.debug("Starting Data Controller.")
+        try:
+            data_controller = DataController(news_api_key)
+            logger.debug("Finished.")
+        except Exception as e:
+            logger.error(f"An error occurred: {e}")
+        
+        #Sentiment Controller
+        logger.debug("Started Sentiment Controller.")
+        try:
+            sentiment_controller = SentimentController(openai_api_key)
+            logger.debug("Finished.")
+        except Exception as e:
+            logger.error(f"An error occurred: {e}")
+        
+        #Report View
+        logger.debug("Started Report View.")
+        try:
+            report_view = ReportView()
+            logger.debug("Finished.")
+        except Exception as e:
+            logger.error(f"An error occurred: {e}")
 
-        ohlcv_data = data_controller.get_ohlcv_data(ticker)
-        news_data = data_controller.get_news_data(ticker)
-        sentiments = sentiment_controller.analyze_sentiment(news_data)
-
-        report = report_view.generate_report(ticker, ohlcv_data, sentiments)
+        #Get OHLCV data
+        logger.debug("Started Get OHLCV data.")
+        try:
+            ohlcv_data = data_controller.get_ohlcv_data(ticker)
+            logger.debug("Finished.")
+        except Exception as e:
+            logger.error(f"An error occurred: {e}")
+        
+        #Get News data
+        logger.debug("Started Get News data.")
+        try:
+            news_data = data_controller.get_news_data(ticker)
+            logger.debug("Finished.")
+        except Exception as e:
+            logger.error(f"An error occurred: {e}")
+        
+        #Analyze Sentiment
+        logger.debug("Started Analyze Sentiment.")
+        try:
+            sentiments = sentiment_controller.analyze_sentiment(news_data)
+            logger.debug("Finished.")
+        except Exception as e:
+            logger.error(f"An error occurred: {e}")
+        
+        #Report
+        logger.debug("Started Report.")
+        try:
+            report = report_view.generate_report(ticker, ohlcv_data, sentiments)
+            logger.debug("Finished.")
+        except Exception as e:
+            logger.error(f"An error occurred: {e}")
+        
         print(report)
     except Exception as e:
         logger.error(f"An error occurred: {e}")
@@ -196,8 +242,6 @@ def main(ticker):
 if __name__ == "__main__":
     ticker = "AAPL"  # Ticker de exemplo
     main(ticker)
-
-
 '
 
 create_file "app/models/ohlcv_model.py" 'import os
