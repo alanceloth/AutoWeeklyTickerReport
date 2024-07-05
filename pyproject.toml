@@ -16,6 +16,7 @@ pytest = "^8.2.2"
 sqlalchemy = "^2.0.31"
 duckdb = "^1.0.0"
 fastparquet = "^2024.5.0"
+python-dotenv = "^1.0.1"
 
 
 [build-system]

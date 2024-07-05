@@ -1,12 +1,21 @@
+import os
+from dotenv import load_dotenv
 from app.controllers.data_controller import DataController
 from app.controllers.sentiment_controller import SentimentController
 from app.views.report_view import ReportView
 from loguru import logger
 
+# Carregar variáveis de ambiente do arquivo .env
+load_dotenv()
+
+# Configurar a chave da API do OpenAI
+openai_api_key = os.getenv("OPENAI_API_KEY")
+news_api_key = os.getenv("NEWS_API_KEY")
+
 def main(ticker):
     try:
-        data_controller = DataController()
-        sentiment_controller = SentimentController()
+        data_controller = DataController(news_api_key)
+        sentiment_controller = SentimentController(openai_api_key)
         report_view = ReportView()
 
         ohlcv_data = data_controller.get_ohlcv_data(ticker)
@@ -22,4 +31,3 @@ def main(ticker):
 if __name__ == "__main__":
     ticker = "AAPL"  # Example ticker
     main(ticker)
-

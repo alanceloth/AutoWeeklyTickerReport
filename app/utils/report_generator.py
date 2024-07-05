@@ -1,15 +1,15 @@
 import openai
 
 class ReportGenerator:
-    def __init__(self):
-        openai.api_key = "YOUR_API_KEY"
+    def __init__(self, openai_api_key):
+        openai.api_key = openai_api_key
 
     def analyze_sentiment(self, news):
         sentiments = []
         for article in news:
             response = openai.Completion.create(
-                model="text-davinci-003",
-                prompt=f"Analyze the sentiment of this news article: {article["title"]}",
+                model="gpt-4-turbo",  # Usando GPT-4 Turbo
+                prompt=f"Analyze the sentiment of this news article: {article['title']}",
                 max_tokens=50
             )
             sentiment = response.choices[0].text.strip()
@@ -18,4 +18,3 @@ class ReportGenerator:
                 "sentiment": sentiment
             })
         return sentiments
-

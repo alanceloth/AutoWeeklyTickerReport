@@ -141,15 +141,24 @@ Para contribuir com este projeto, siga os passos abaixo:
 '
 
 
-create_file "main.py" 'from app.controllers.data_controller import DataController
+create_file "main.py" 'import os
+from dotenv import load_dotenv
+from app.controllers.data_controller import DataController
 from app.controllers.sentiment_controller import SentimentController
 from app.views.report_view import ReportView
 from loguru import logger
 
+# Carregar variáveis de ambiente do arquivo .env
+load_dotenv()
+
+# Configurar a chave da API do OpenAI
+openai_api_key = os.getenv("OPENAI_API_KEY")
+news_api_key = os.getenv("NEWS_API_KEY")
+
 def main(ticker):
     try:
-        data_controller = DataController()
-        sentiment_controller = SentimentController()
+        data_controller = DataController(news_api_key)
+        sentiment_controller = SentimentController(openai_api_key)
         report_view = ReportView()
 
         ohlcv_data = data_controller.get_ohlcv_data(ticker)
@@ -165,6 +174,7 @@ def main(ticker):
 if __name__ == "__main__":
     ticker = "AAPL"  # Example ticker
     main(ticker)
+
 '
 
 create_file "app/models/ohlcv_model.py" 'class OHLCV:
@@ -199,30 +209,35 @@ create_file "app/views/report_view.py" 'class ReportView:
 create_file "app/controllers/data_controller.py" 'from app.utils.data_fetcher import DataFetcher
 
 class DataController:
-    def __init__(self):
-        self.data_fetcher = DataFetcher()
+    def __init__(self, news_api_key):
+        self.data_fetcher = DataFetcher(news_api_key)
 
     def get_ohlcv_data(self, ticker):
         return self.data_fetcher.fetch_ohlcv(ticker)
 
     def get_news_data(self, ticker):
         return self.data_fetcher.fetch_news(ticker)
+
 '
 
 create_file "app/controllers/sentiment_controller.py" 'from app.utils.report_generator import ReportGenerator
 
 class SentimentController:
-    def __init__(self):
-        self.report_generator = ReportGenerator()
+    def __init__(self, openai_api_key):
+        self.report_generator = ReportGenerator(openai_api_key)
 
     def analyze_sentiment(self, news):
         return self.report_generator.analyze_sentiment(news)
+
 '
 
 create_file "app/utils/data_fetcher.py" 'import yfinance as yf
 import requests
 
 class DataFetcher:
+    def __init__(self, news_api_key):
+        self.news_api_key = news_api_key
+
     def fetch_ohlcv(self, ticker):
         stock = yf.Ticker(ticker)
         hist = stock.history(period="1wk")
@@ -239,7 +254,7 @@ class DataFetcher:
         return ohlcv_data
 
     def fetch_news(self, ticker):
-        url = f"https://newsapi.org/v2/everything?q={ticker}&apiKey=YOUR_API_KEY"
+        url = f"https://newsapi.org/v2/everything?q={ticker}&apiKey={self.news_api_key}"
         response = requests.get(url)
         news = response.json()["articles"]
         news_data = []
@@ -250,20 +265,21 @@ class DataFetcher:
                 "url": article["url"]
             })
         return news_data
+
 '
 
 create_file "app/utils/report_generator.py" 'import openai
 
 class ReportGenerator:
-    def __init__(self):
-        openai.api_key = "YOUR_API_KEY"
+    def __init__(self, openai_api_key):
+        openai.api_key = openai_api_key
 
     def analyze_sentiment(self, news):
         sentiments = []
         for article in news:
             response = openai.Completion.create(
-                model="text-davinci-003",
-                prompt=f"Analyze the sentiment of this news article: {article["title"]}",
+                model="gpt-4-turbo",  # Usando GPT-4 Turbo
+                prompt=f"Analyze the sentiment of this news article: {article['title']}",
                 max_tokens=50
             )
             sentiment = response.choices[0].text.strip()
@@ -272,6 +288,7 @@ class ReportGenerator:
                 "sentiment": sentiment
             })
         return sentiments
+
 '
 
 # Criação de arquivos de teste
@@ -352,6 +369,10 @@ services:
       - "8000:8000"
     environment:
       - DATABASE_URL=postgresql://user:password@db:5432/mydatabase
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - NEWS_API_KEY=${NEWS_API_KEY}
+    env_file:
+      - .env
   db:
     image: postgres:13
     environment:
@@ -548,7 +569,7 @@ DATABASE_URL=postgresql://user:password@db:5432/mydatabase
 '
 # Inicialização do Poetry e instalação das dependências
 poetry init -n
-poetry add pandas yfinance requests openai loguru pytest SQLAlchemy duckdb fastparquet
+poetry add pandas yfinance requests openai loguru pytest SQLAlchemy duckdb fastparquet python-dotenv
 
 # Inicialização do repositório Git
 git init
