@@ -152,12 +152,18 @@ from sqlalchemy import inspect
 from app.models.ohlcv_model import engine as OHLCVEngine
 from app.models.news_model import engine as NewsEngine
 
+os.makedirs("logs", exist_ok=True)
+
+
 # Carregar variáveis de ambiente do arquivo .env
 load_dotenv()
 
 # Configurar as chaves de API
 openai_api_key = os.getenv("OPENAI_API_KEY")
 news_api_key = os.getenv("NEWS_API_KEY")
+
+# Configurar Loguru para salvar logs em um arquivo
+logger.add("logs/app.log", rotation="1 MB", retention="10 days")
 
 # Verificar e criar tabelas se necessário
 def check_and_create_tables():
