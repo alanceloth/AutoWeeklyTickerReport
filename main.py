@@ -24,15 +24,18 @@ logger.add("logs/app.log", rotation="1 MB", retention="10 days")
 # Verificar e criar tabelas se necessário
 def check_and_create_tables():
     inspector = inspect(OHLCVEngine)
-    if not inspector.has_table('ohlcv'):
-        create_tables()
+    create_ohlcv = not inspector.has_table('ohlcv')
 
     inspector = inspect(NewsEngine)
-    if not inspector.has_table('news'):
+    create_news = not inspector.has_table('news')
+
+    if create_ohlcv or create_news:
+        logger.debug("Creating necessary tables.")
         create_tables()
 
 def main(ticker):
     try:
+        logger.debug("Starting Check tables.")
         check_and_create_tables()
         
         #Data Controller

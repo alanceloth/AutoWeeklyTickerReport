@@ -167,15 +167,18 @@ logger.add("logs/app.log", rotation="1 MB", retention="10 days")
 # Verificar e criar tabelas se necessário
 def check_and_create_tables():
     inspector = inspect(OHLCVEngine)
-    if not inspector.has_table('ohlcv'):
-        create_tables()
+    create_ohlcv = not inspector.has_table('ohlcv')
 
     inspector = inspect(NewsEngine)
-    if not inspector.has_table('news'):
+    create_news = not inspector.has_table('news')
+
+    if create_ohlcv or create_news:
+        logger.debug("Creating necessary tables.")
         create_tables()
 
 def main(ticker):
     try:
+        logger.debug("Starting Check tables.")
         check_and_create_tables()
         
         #Data Controller
@@ -242,6 +245,7 @@ def main(ticker):
 if __name__ == "__main__":
     ticker = "AAPL"  # Ticker de exemplo
     main(ticker)
+
 '
 
 create_file "app/models/ohlcv_model.py" 'import os
@@ -341,71 +345,84 @@ create_file "app/utils/data_fetcher.py" 'import yfinance as yf
 import requests
 from app.models.ohlcv_model import OHLCV, SessionLocal
 from app.models.news_model import NewsArticle
+from loguru import logger
 
 class DataFetcher:
     def __init__(self, news_api_key):
         self.news_api_key = news_api_key
 
     def fetch_ohlcv(self, ticker):
-        stock = yf.Ticker(ticker)
-        hist = stock.history(period="1wk")
-        ohlcv_data = []
-        for index, row in hist.iterrows():
-            ohlcv_data.append({
-                "Date": index,
-                "Open": row["Open"],
-                "High": row["High"],
-                "Low": row["Low"],
-                "Close": row["Close"],
-                "Volume": row["Volume"]
-            })
-        self.save_ohlcv(ticker, ohlcv_data)
-        return ohlcv_data
+        try:
+            stock = yf.Ticker(ticker)
+            hist = stock.history(period="1wk")
+            ohlcv_data = []
+            for index, row in hist.iterrows():
+                ohlcv_data.append({
+                    "Date": index,
+                    "Open": row["Open"],
+                    "High": row["High"],
+                    "Low": row["Low"],
+                    "Close": row["Close"],
+                    "Volume": row["Volume"]
+                })
+            self.save_ohlcv(ticker, ohlcv_data)
+            return ohlcv_data
+        except Exception as e:
+            logger.error(f"An error occurred while fetching OHLCV data: {e}")
 
     def save_ohlcv(self, ticker, data):
-        session = SessionLocal()
-        for entry in data:
-            ohlcv = OHLCV(
-                ticker=ticker,
-                date=entry["Date"],
-                open=entry["Open"],
-                high=entry["High"],
-                low=entry["Low"],
-                close=entry["Close"],
-                volume=entry["Volume"]
-            )
-            session.add(ohlcv)
-        session.commit()
-        session.close()
+        try:
+            session = SessionLocal()
+            for entry in data:
+                ohlcv = OHLCV(
+                    ticker=ticker,
+                    date=entry["Date"],
+                    open=entry["Open"],
+                    high=entry["High"],
+                    low=entry["Low"],
+                    close=entry["Close"],
+                    volume=entry["Volume"]
+                )
+                session.add(ohlcv)
+            session.commit()
+            session.close()
+        except Exception as e:
+            logger.error(f"An error occurred while saving OHLCV data: {e}")
 
     def fetch_news(self, ticker):
-        url = f"https://newsapi.org/v2/everything?q={ticker}&apiKey={self.news_api_key}"
-        response = requests.get(url)
-        news = response.json()["articles"]
-        news_data = []
-        for article in news:
-            news_data.append({
-                "title": article["title"],
-                "description": article["description"],
-                "url": article["url"]
-            })
-        self.save_news(ticker, news_data)
-        return news_data
+        try:
+            url = f"https://newsapi.org/v2/everything?q={ticker}&apiKey={self.news_api_key}"
+            response = requests.get(url)
+            response.encoding = 'utf-8'  # Garantir leitura em UTF-8
+            news = response.json()["articles"]
+            news_data = []
+            for article in news:
+                news_data.append({
+                    "title": article["title"],
+                    "description": article["description"],
+                    "url": article["url"]
+                })
+            self.save_news(ticker, news_data)
+            return news_data
+        except Exception as e:
+            logger.error(f"An error occurred while fetching news data: {e}")
 
     def save_news(self, ticker, data):
-        session = SessionLocal()
-        for entry in data:
-            news_article = NewsArticle(
-                ticker=ticker,
-                title=entry["title"],
-                description=entry["description"],
-                url=entry["url"],
-                sentiment=""  # Sentiment will be updated later
-            )
-            session.add(news_article)
-        session.commit()
-        session.close()
-
+        try:
+            session = SessionLocal()
+            for entry in data:
+                news_article = NewsArticle(
+                    ticker=ticker,
+                    title=entry["title"],
+                    description=entry["description"],
+                    url=entry["url"],
+                    sentiment=""  # Sentiment will be updated later
+                )
+                session.add(news_article)
+            session.commit()
+            session.close()
+        except Exception as e:
+            logger.error(f"An error occurred while saving news data: {e}")
 
 '
 
